@@ -34,7 +34,10 @@ from matplotlib.backends.backend_qtagg import NavigationToolbar2QT as Navigation
 from matplotlib.figure import Figure
 
 import household_simulation as sd
-from model_runner import RunConfig, run, INTERVALS, DAY_TYPES, CLASS_MIX
+from model_runner import (
+    RunConfig, run, INTERVALS, DAY_TYPES, CLASS_MIX, HORIZONS,
+    SimulationCancelled,
+)
 
 MONTHS = ["January", "February", "March", "April", "May", "June", "July",
           "August", "September", "October", "November", "December"]
@@ -72,16 +75,26 @@ class Worker(QObject):
     progress = Signal(int, str)
     finished = Signal(dict)
     failed = Signal(str)
+    cancelled = Signal()
 
     def __init__(self, cfg: RunConfig):
         super().__init__()
         self.cfg = cfg
+        self._stop = False
+
+    def request_stop(self):
+        """Called from the GUI thread — flips the flag the worker polls."""
+        self._stop = True
 
     @Slot()
     def run(self):
         try:
-            res = run(self.cfg, progress=lambda p, m: self.progress.emit(p, m))
+            res = run(self.cfg,
+                      progress=lambda p, m: self.progress.emit(p, m),
+                      stop_check=lambda: self._stop)
             self.finished.emit(res)
+        except SimulationCancelled:
+            self.cancelled.emit()
         except Exception as e:  # noqa: BLE001
             import traceback
             self.failed.emit(f"{e}\n\n{traceback.format_exc()}")
@@ -120,12 +133,15 @@ class MainWindow(QMainWindow):
         self.cmb_interval = QComboBox(); self.cmb_interval.addItems(INTERVALS.keys())
         self.cmb_interval.setCurrentText("10 min")
         self.cmb_day = QComboBox(); self.cmb_day.addItems(DAY_TYPES.keys())
+        self.cmb_horizon = QComboBox(); self.cmb_horizon.addItems(HORIZONS.keys())
+        self.cmb_horizon.setCurrentText("Day")
         self.spn_iter = QSpinBox(); self.spn_iter.setRange(1, 50); self.spn_iter.setValue(5)
         self.cmb_class = QComboBox(); self.cmb_class.addItems(CLASS_MIX.keys())
         f.addRow("Month:", self.cmb_month)
         f.addRow("Number of households:", self.spn_hh)
         f.addRow("Resolution:", self.cmb_interval)
         f.addRow("Day type:", self.cmb_day)
+        f.addRow("Horizon:", self.cmb_horizon)
         f.addRow("Iterations:", self.spn_iter)
         f.addRow("Equipment:", self.cmb_class)
         lay.addWidget(g_base)
@@ -175,10 +191,16 @@ class MainWindow(QMainWindow):
         # Actions
         self.btn_run = QPushButton("▶ Run")
         self.btn_run.clicked.connect(self.on_run)
+        self.btn_stop = QPushButton("■ Stop")
+        self.btn_stop.clicked.connect(self.on_stop)
+        self.btn_stop.setEnabled(False)
         self.btn_save = QPushButton("💾 Save CSV")
         self.btn_save.clicked.connect(self.on_save)
         self.btn_save.setEnabled(False)
-        lay.addWidget(self.btn_run)
+        row_actions = QHBoxLayout()
+        row_actions.addWidget(self.btn_run, 1)
+        row_actions.addWidget(self.btn_stop, 1)
+        lay.addLayout(row_actions)
         lay.addWidget(self.btn_save)
 
         self.progress = QProgressBar(); self.progress.setRange(0, 100)
@@ -241,10 +263,13 @@ class MainWindow(QMainWindow):
     def _build_plot(self) -> QWidget:
         wrap = QWidget()
         v = QVBoxLayout(wrap)
-        self.fig = Figure(figsize=(7, 5), tight_layout=True)
+        self.fig = Figure(figsize=(7, 6.5), tight_layout=True)
         self.canvas = FigureCanvas(self.fig)
-        self.ax = self.fig.add_subplot(111)
+        # Two stacked axes: top = per-CP breakdown, bottom = feeder aggregate.
+        self.ax = self.fig.add_subplot(2, 1, 1)
+        self.ax_feeder = self.fig.add_subplot(2, 1, 2, sharex=self.ax)
         self.ax_q = None
+        self.ax_feeder_q = None
         v.addWidget(NavigationToolbar(self.canvas, wrap))
         v.addWidget(self.canvas, 1)
         self._blank_plot()
@@ -258,6 +283,10 @@ class MainWindow(QMainWindow):
         self.ax.text(0.5, 0.5, "Set the parameters and run the simulation.",
                      ha="center", va="center", transform=self.ax.transAxes,
                      color="gray")
+        self.ax_feeder.clear()
+        self.ax_feeder.set_xlabel("Hour")
+        self.ax_feeder.set_ylabel("Feeder power (kW)")
+        self.ax_feeder.set_xlim(0, 24)
         self.canvas.draw_idle()
 
     def _toggle_pv(self, on: bool):
@@ -273,6 +302,7 @@ class MainWindow(QMainWindow):
             n_households=self.spn_hh.value(),
             interval_seconds=INTERVALS[self.cmb_interval.currentText()],
             period_type=DAY_TYPES[self.cmb_day.currentText()],
+            horizon=HORIZONS[self.cmb_horizon.currentText()],
             iterations=self.spn_iter.value(),
             equip_class=self.cmb_class.currentText(),
             enabled_appliances=ea,
@@ -296,6 +326,7 @@ class MainWindow(QMainWindow):
             return
         self.btn_run.setEnabled(False)
         self.btn_save.setEnabled(False)
+        self.btn_stop.setEnabled(True)
         self.progress.setValue(0)
         self._thread = QThread()
         self._worker = Worker(cfg)
@@ -304,10 +335,18 @@ class MainWindow(QMainWindow):
         self._worker.progress.connect(self.on_progress)
         self._worker.finished.connect(self.on_finished)
         self._worker.failed.connect(self.on_failed)
+        self._worker.cancelled.connect(self.on_cancelled)
         self._worker.finished.connect(self._thread.quit)
         self._worker.failed.connect(self._thread.quit)
+        self._worker.cancelled.connect(self._thread.quit)
         self._thread.finished.connect(self._thread.deleteLater)
         self._thread.start()
+
+    def on_stop(self):
+        if self._worker is not None:
+            self._worker.request_stop()
+            self.btn_stop.setEnabled(False)
+            self.status.setText("Stop requested…")
 
     @Slot(int, str)
     def on_progress(self, pct: int, msg: str):
@@ -318,6 +357,7 @@ class MainWindow(QMainWindow):
     def on_finished(self, res: dict):
         self._result = res
         self.btn_run.setEnabled(True)
+        self.btn_stop.setEnabled(False)
         self.btn_save.setEnabled(True)
         self.plot(res)
         N = res["meta"]["n_households"]
@@ -331,70 +371,161 @@ class MainWindow(QMainWindow):
     @Slot(str)
     def on_failed(self, err: str):
         self.btn_run.setEnabled(True)
+        self.btn_stop.setEnabled(False)
         self.status.setText("Simulation error.")
         QMessageBox.critical(self, "Error", err)
+
+    @Slot()
+    def on_cancelled(self):
+        self.btn_run.setEnabled(True)
+        self.btn_stop.setEnabled(False)
+        self.status.setText("Simulation cancelled.")
 
     # ---- plotting ------------------------------------------------------
     def plot(self, res: dict):
         N = res["meta"]["n_households"]
         t = res["t"]
-        total = res["total"] / N
+        avg_per_cp = res["total"] / N
+        single_cp = res.get("single_cp")
         mode = self.cmb_break.currentText()
 
+        # ---- top panel: single-CP raw profile -----------------------------
+        # Shows one representative household from the last iteration -- keeps
+        # the raw appliance switching visible. Averaged per-CP would be
+        # identical in shape to the feeder aggregate below (just rescaled),
+        # so we plot the raw single-CP instead.
         self.ax.clear()
         if self.ax_q is not None:
             self.ax_q.remove()
             self.ax_q = None
 
-        if mode == "Groups" and res["groups"]:
-            bottom = np.zeros_like(total)
+        single_appl = res.get("single_cp_appliances") or {}
+
+        # Groups from single-CP appliance breakdown (same GROUP_KEYS mapping
+        # as the feeder aggregate). Only populated when we actually have the
+        # per-appliance decomposition of the tracked household.
+        single_groups: dict = {}
+        for g, keys in sd.APPLIANCE_GROUPS.items():
+            arrs = [single_appl[k] for k in keys if k in single_appl]
+            if arrs:
+                single_groups[g] = np.sum(arrs, axis=0)
+
+        if mode == "Groups" and single_groups:
+            bottom = np.zeros_like(t)
             for g in sd.GROUP_KEYS:
-                if g not in res["groups"]:
+                if g not in single_groups:
                     continue
-                y = res["groups"][g] / N
+                y = single_groups[g]
                 if y.max() <= 0:
                     continue
                 self.ax.fill_between(t, bottom, bottom + y, step="mid",
                                      label=GROUP_LABELS.get(g, g),
                                      color=GROUP_COLORS.get(g), alpha=0.85)
                 bottom = bottom + y
-            self.ax.plot(t, total, "k-", lw=1.1, label="Total load")
-        elif mode == "Appliances" and res["appliances"]:
+            self.ax.plot(t, single_cp, "k-", lw=1.0, label="Single CP total")
+        elif mode == "Appliances" and single_appl:
             cmap = matplotlib.colormaps["tab20"]
-            bottom = np.zeros_like(total)
-            items = [(k, v) for k, v in res["appliances"].items() if np.asarray(v).max() > 0]
+            bottom = np.zeros_like(t)
+            items = [(k, v) for k, v in single_appl.items() if np.asarray(v).max() > 0]
             for i, (k, v) in enumerate(items):
-                y = np.asarray(v) / N
+                y = np.asarray(v)
                 self.ax.fill_between(t, bottom, bottom + y, step="mid",
                                      label=k, color=cmap(i % 20), alpha=0.85)
                 bottom = bottom + y
-            self.ax.plot(t, total, "k-", lw=1.1, label="Total load")
+            self.ax.plot(t, single_cp, "k-", lw=1.0, label="Single CP total")
+        elif single_cp is not None:
+            self.ax.plot(t, single_cp, "-", color="#009e73", lw=1.0,
+                         label="Single CP active P (W)")
         else:
-            self.ax.plot(t, total, "-", color="#009e73", lw=1.6, label="Load")
+            self.ax.plot(t, avg_per_cp, "-", color="#009e73", lw=1.6,
+                         label="Feeder average / CP")
 
-        # Photovoltaics: generation is drawn NEGATIVE (as a reduction in load).
-        # Grid draw = load - generation (negative = export to the grid).
-        if res["pv"] is not None:
-            self.ax.axhline(0, color="black", lw=0.6)
-            self.ax.fill_between(t, 0.0, -res["pv"] / N, step="mid",
-                                 color="#f0c000", alpha=0.40, label="PV generation (−)")
-            self.ax.plot(t, res["net"] / N, "-", color="#0072b2", lw=1.8,
-                         label="Grid draw (load − generation)")
-
-        # Reactive power on the secondary axis.
-        if res["reactive"] is not None:
+        # Reactive power on the secondary axis: the single-CP curve
+        # computed from the same household's own appliance breakdown
+        # (bottom-up sum P_i * tan phi_i). If unavailable, fall back to
+        # the per-CP average.
+        q_single = res.get("reactive_single_cp")
+        if q_single is not None:
+            self.ax_q = self.ax.twinx()
+            self.ax_q.plot(t, q_single, ":", color="#555555", lw=1.6,
+                           label="Single CP reactive Q (var)")
+            self.ax_q.set_ylabel("Reactive power (var)")
+            self.ax_q.legend(loc="upper right", fontsize=7)
+        elif res["reactive"] is not None:
             self.ax_q = self.ax.twinx()
             self.ax_q.plot(t, res["reactive"] / N, ":", color="#555555", lw=1.6,
-                           label="Reactive power Q")
+                           label="Reactive Q / CP (feeder average)")
             self.ax_q.set_ylabel("Reactive power (var/CP)")
             self.ax_q.legend(loc="upper right", fontsize=7)
 
         self.ax.set_xlabel("Hour")
         self.ax.set_ylabel("Power (W/CP)")
-        self.ax.set_xlim(0, 24)
+        n_days = res["meta"].get("n_days", 1)
+        horizon_label = f", horizon {n_days} day{'s' if n_days > 1 else ''}" if n_days > 1 else ""
+        self.ax.set_title(f"Single connection point (representative household){horizon_label}",
+                          fontsize=9)
+        self.ax.set_xlim(0, t[-1] if len(t) else 24)
+        self.ax.set_ylim(bottom=0)
+        self.ax.legend(loc="upper left", fontsize=7)
+
+        # ---- bottom panel: feeder aggregate (kW, kvar) -------------------
+        self.ax_feeder.clear()
+        if self.ax_feeder_q is not None:
+            self.ax_feeder_q.remove()
+            self.ax_feeder_q = None
+
+        p_kw = res["total"] / 1000.0
+        if mode == "Groups" and res["groups"]:
+            bottom = np.zeros_like(p_kw)
+            for g in sd.GROUP_KEYS:
+                if g not in res["groups"]:
+                    continue
+                y = res["groups"][g] / 1000.0
+                if y.max() <= 0:
+                    continue
+                self.ax_feeder.fill_between(t, bottom, bottom + y, step="mid",
+                                            label=GROUP_LABELS.get(g, g),
+                                            color=GROUP_COLORS.get(g), alpha=0.85)
+                bottom = bottom + y
+            self.ax_feeder.plot(t, p_kw, "k-", lw=1.1, label="Feeder total")
+        elif mode == "Appliances" and res["appliances"]:
+            cmap = matplotlib.colormaps["tab20"]
+            bottom = np.zeros_like(p_kw)
+            items = [(k, v) for k, v in res["appliances"].items() if np.asarray(v).max() > 0]
+            for i, (k, v) in enumerate(items):
+                y = np.asarray(v) / 1000.0
+                self.ax_feeder.fill_between(t, bottom, bottom + y, step="mid",
+                                            label=k, color=cmap(i % 20), alpha=0.85)
+                bottom = bottom + y
+            self.ax_feeder.plot(t, p_kw, "k-", lw=1.1, label="Feeder total")
+        else:
+            self.ax_feeder.plot(t, p_kw, "-", color="#009e73", lw=1.6,
+                                label="Feeder active P (kW)")
+
+        if res["pv"] is not None:
+            self.ax_feeder.axhline(0, color="black", lw=0.6)
+            self.ax_feeder.fill_between(t, 0.0, -res["pv"] / 1000.0, step="mid",
+                                        color="#f0c000", alpha=0.40,
+                                        label="PV generation (−)")
+            self.ax_feeder.plot(t, res["net"] / 1000.0, "-", color="#0072b2",
+                                lw=1.8, label="Net grid draw (kW)")
+        if res["reactive"] is not None:
+            self.ax_feeder_q = self.ax_feeder.twinx()
+            self.ax_feeder_q.plot(t, res["reactive"] / 1000.0, ":",
+                                  color="#555555", lw=1.6,
+                                  label="Feeder reactive Q (kvar)")
+            self.ax_feeder_q.set_ylabel("Reactive power (kvar)")
+            self.ax_feeder_q.legend(loc="upper right", fontsize=7)
+
+        self.ax_feeder.set_xlabel("Hour")
+        self.ax_feeder.set_ylabel("Feeder power (kW)")
+        self.ax_feeder.set_title(f"Feeder aggregate (sum of {N} CPs){horizon_label}",
+                                 fontsize=9)
+        self.ax_feeder.set_xlim(0, t[-1] if len(t) else 24)
         if res["pv"] is None:
-            self.ax.set_ylim(bottom=0)
-        self.ax.legend(loc="upper left", fontsize=7, ncol=2)
+            self.ax_feeder.set_ylim(bottom=0)
+        self.ax_feeder.legend(loc="upper left", fontsize=7, ncol=2)
+
         self.canvas.draw_idle()
 
     # ---- export --------------------------------------------------------

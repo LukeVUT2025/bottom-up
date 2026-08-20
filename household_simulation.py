@@ -2096,6 +2096,14 @@ class HouseholdSimulation:
         _ap: dict = {k: np.zeros(86400) for k in _SIM_APPLIANCE_KEYS}
         self.appliance_profile = _ap
 
+        # Per-appliance profile for one specific person (default index 0),
+        # kept separately so that a "single connection point" view can be
+        # reconstructed without disturbing the aggregate sums. This adds
+        # only per-person O(1) inserts to the loop below.
+        _ap_single: dict = {k: np.zeros(86400) for k in _SIM_APPLIANCE_KEYS}
+        self.single_cp_appliance_profile = _ap_single
+        self.single_cp_person_idx = 0
+
         # Per-household ownership flags (at most one physical unit per appliance)
         # If `appliance_ownership` is provided it should map appliance key ->
         # ownership probability in [0,1]. By default every household has one unit.
@@ -2259,46 +2267,72 @@ class HouseholdSimulation:
                 p_tv_standby = self._appliance_24h("tv_standby") if (_en('tv') and self._household_has_appliance['tv'][idx])               else np.zeros(86400)
 
                 row = total_profile[idx]
+                # Mirror inserts into per-appliance profile of one target
+                # person for the single-CP view. Points to the same dicts as
+                # `_ap` for all non-target persons (a no-op alias).
+                _ap_target = _ap_single if idx == self.single_cp_person_idx else _ap
 
                 # Insert into total row AND per-appliance 1D sums
                 for z, p in zip(s_kettle, p_kettle):
                     if self._insert_no_overlap(row, occupied, z, p):
                         self._insert(_ap['kettle'], z, p)
+                        if _ap_target is not _ap:
+                            self._insert(_ap_target['kettle'], z, p)
                 if p_toaster is not None:
                     for z in s_toaster:
                         if self._insert_no_overlap(row, occupied, z, p_toaster):
                             self._insert(_ap['toaster'], z, p_toaster)
+                            if _ap_target is not _ap:
+                                self._insert(_ap_target['toaster'], z, p_toaster)
                 for z, p in zip(s_hob, p_hob):
                     if self._insert_no_overlap(row, occupied, z, p):
                         self._insert(_ap['hob'], z, p)
+                        if _ap_target is not _ap:
+                            self._insert(_ap_target['hob'], z, p)
                 for z, p in zip(s_micro, p_micro):
                     if self._insert_no_overlap(row, occupied, z, p):
                         self._insert(_ap['microwave'], z, p)
+                        if _ap_target is not _ap:
+                            self._insert(_ap_target['microwave'], z, p)
                 for z, p in zip(s_oven, p_oven):
                     if self._insert_no_overlap(row, occupied, z, p):
                         self._insert(_ap['oven'], z, p)
+                        if _ap_target is not _ap:
+                            self._insert(_ap_target['oven'], z, p)
 
                 for z, p in zip(z_tv, p_tv):
                     if self._insert_no_overlap(row, occupied, z, p):
                         self._insert(_ap['tv'], z, p)
+                        if _ap_target is not _ap:
+                            self._insert(_ap_target['tv'], z, p)
                 for z, p in zip(z_pc, p_pc):
                     if self._insert_no_overlap(row, occupied, z, p):
                         self._insert(_ap['pc'], z, p)
+                        if _ap_target is not _ap:
+                            self._insert(_ap_target['pc'], z, p)
 
                 for z, p in zip(s_hairdryer, p_hairdryer):
                     if self._insert_no_overlap(row, occupied, z, p):
                         self._insert(_ap['hair_dryer'], z, p)
+                        if _ap_target is not _ap:
+                            self._insert(_ap_target['hair_dryer'], z, p)
 
                 for z, p in zip(s_vacuum, p_vacuum):
                     if self._insert_no_overlap(row, occupied, z, p):
                         self._insert(_ap['vacuum'], z, p)
+                        if _ap_target is not _ap:
+                            self._insert(_ap_target['vacuum'], z, p)
                 for z, p in zip(s_iron, p_iron):
                     if self._insert_no_overlap(row, occupied, z, p):
                         self._insert(_ap['iron'], z, p)
+                        if _ap_target is not _ap:
+                            self._insert(_ap_target['iron'], z, p)
 
                 if _en('washing_machine') and np.random.random() < 0.8:
                     if self._insert_no_overlap(row, occupied, s_wash, p_wash):
                         self._insert(_ap['washing_machine'], s_wash, p_wash)
+                        if _ap_target is not _ap:
+                            self._insert(_ap_target['washing_machine'], s_wash, p_wash)
                         # The dryer runs AFTER the wash (for owners), starting
                         # at the end of the washing-machine cycle. Via the
                         # overlap check it does not clash with the vacuum or
@@ -2309,9 +2343,13 @@ class HouseholdSimulation:
                             s_dry = int(s_wash) + len(p_wash)
                             if self._insert_no_overlap(row, occupied, s_dry, self.dryer_profile):
                                 self._insert(_ap['dryer'], s_dry, self.dryer_profile)
+                                if _ap_target is not _ap:
+                                    self._insert(_ap_target['dryer'], s_dry, self.dryer_profile)
                 if _en('dishwasher') and np.random.random() < 0.7:
                     if self._insert_no_overlap(row, occupied, s_dish, p_dish):
                         self._insert(_ap['dishwasher'], s_dish, p_dish)
+                        if _ap_target is not _ap:
+                            self._insert(_ap_target['dishwasher'], s_dish, p_dish)
 
                 # Always-On: direct array addition (constant 24-h profiles)
                 row                      += (p_fridge + p_freezer + p_router
@@ -2321,6 +2359,12 @@ class HouseholdSimulation:
                 _ap['router']           += p_router
                 _ap['small_appliances'] += p_small
                 _ap['tv']              += p_tv_standby   # standby → TV appliance
+                if _ap_target is not _ap:
+                    _ap_target['refrigerator']    += p_fridge
+                    _ap_target['freezer']         += p_freezer
+                    _ap_target['router']          += p_router
+                    _ap_target['small_appliances'] += p_small
+                    _ap_target['tv']              += p_tv_standby
 
                 self.model_total_profile[idx, :86400] = row
                 self.model_total_profile[idx, 86400]  = size_class1
@@ -2504,6 +2548,52 @@ class HouseholdSimulation:
             if key in appl:
                 q = q + np.asarray(appl[key], dtype=float) * tanphi
         return q
+
+    def get_single_cp_appliance_results(self, interval_seconds: int = 600,
+                                         month: int = 1,
+                                         enabled_appliances: Optional[Set[str]] = None,
+                                         include_solar_gains: bool = True) -> dict:
+        """Per-appliance profile of the tracked single-CP household.
+
+        Returns a dict {appliance_key: 1D array of length 86400/interval}
+        combining the sim-loop appliances (mirrored during simulate()) with
+        this person's share of lighting/boiler/heating/cooling from
+        results_with_lighting_and_heating(). Total = sum of the values.
+        """
+        if self.single_cp_appliance_profile is None:
+            raise RuntimeError("Call simulate() first.")
+        self._ensure_results(interval_seconds, month, enabled_appliances,
+                             include_solar_gains)
+        ag = interval_seconds
+
+        def _agg_1d(arr: np.ndarray) -> np.ndarray:
+            if ag == 1:
+                return arr.copy()
+            pts = 86400 // ag
+            return arr.reshape(pts, ag).mean(axis=1)
+
+        def _en(k: str) -> bool:
+            return enabled_appliances is None or k in enabled_appliances
+
+        idx = int(self.single_cp_person_idx)
+        out: dict = {}
+        for k, arr in self.single_cp_appliance_profile.items():
+            out[k] = _agg_1d(arr)
+        # Per-person lighting / boiler / heating / cooling (already at ag).
+        if self.lighting_profile is not None and _en('lighting'):
+            out['lighting'] = np.asarray(self.lighting_profile[idx], dtype=float)
+        if self.model_boiler is not None and _en('boiler'):
+            out['boiler'] = np.asarray(self.model_boiler[idx], dtype=float)
+        if self.model_heating is not None:
+            use_v2 = (enabled_appliances is None) or ('heating_v2' in enabled_appliances)
+            use_legacy = ((enabled_appliances is None) or ('heating' in enabled_appliances)) and not use_v2
+            if use_v2:
+                out['heating_v2'] = np.asarray(self.model_heating[idx], dtype=float)
+            elif use_legacy:
+                out['heating'] = np.asarray(self.model_heating[idx], dtype=float)
+        if getattr(self, 'model_cooling', None) is not None and _en('cooling_v2'):
+            out['cooling_v2'] = np.asarray(self.model_cooling[idx], dtype=float)
+        return out
 
     def _ensure_results(self, interval_seconds: int, month: int,
                           enabled_appliances,
