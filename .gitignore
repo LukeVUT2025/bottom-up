@@ -1,0 +1,14 @@
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+env/
+.vscode/
+.idea/
+examples/*.csv
+examples/*.png
+*.tmp
+
+# MATLAB Drive metadata
+.MATLABDriveTag

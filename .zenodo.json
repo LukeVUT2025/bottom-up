@@ -1,0 +1,41 @@
+{
+  "title": "Localizable bottom-up household load model",
+  "description": "<p>A localizable, decomposable bottom-up model of residential electricity demand with resolution down to one second. Probabilistic occupancy (a Markov chain driven by a time-use survey) switches appliances with measured power traces, and the seasonal shape is localized by the national standard load profile, so no local time-use survey is required. Demand can be decomposed down to the individual appliance, which enables efficiency scenarios. Reactive power is modelled as a single constant capacitive parameter per connection point. Includes a PySide6 desktop application and an optional pvlib/PVGIS photovoltaic chain.</p><p>This is the reference implementation for the manuscript <em>&quot;A localisable bottom-up model of household load profiles with appliance-level decomposition: validation against five independent measurement sources&quot;</em> (Applied Energy).</p><p>Restricted validation data (distribution feeder and smart-meter measurements from the distribution system operators) are not included and are not required to run the model.</p>",
+  "upload_type": "software",
+  "license": "MIT",
+  "access_right": "open",
+  "language": "eng",
+  "creators": [
+    {
+      "name": "Radil, Lukáš",
+      "affiliation": "Brno University of Technology, Faculty of Electrical Engineering and Communication",
+      "orcid": "0000-0002-5837-0317"
+    },
+    {
+      "name": "Ptáček, Michal",
+      "affiliation": "Brno University of Technology, Faculty of Electrical Engineering and Communication",
+      "orcid": "0000-0001-8923-7693"
+    },
+    {
+      "name": "Morávek, Jan",
+      "affiliation": "Brno University of Technology, Faculty of Electrical Engineering and Communication",
+      "orcid": "0000-0002-8662-7001"
+    },
+    {
+      "name": "Pavlík, Libor",
+      "affiliation": "Brno University of Technology, Faculty of Electrical Engineering and Communication"
+    }
+  ],
+  "keywords": [
+    "bottom-up model",
+    "load profile",
+    "residential electricity demand",
+    "appliance-level decomposition",
+    "reactive power",
+    "Markov chain",
+    "standard load profile",
+    "time-use survey",
+    "photovoltaics"
+  ],
+  "notes": "This research work has been carried out in the Centre for Research and Utilization of Renewable Energy (CVVOZE). Authors gratefully acknowledge financial support from the Ministry of Education, Youth and Sports of the Czech Republic under BUT specific research programme (project No. FEKT-S-26-9088)."
+}

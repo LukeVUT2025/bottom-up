@@ -1,0 +1,64 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite both the software (this file) and the paper listed under preferred-citation."
+title: "Localizable bottom-up household load model"
+abstract: >-
+  A localizable, decomposable bottom-up model of residential electricity
+  demand with resolution down to one second. Probabilistic occupancy (a
+  Markov chain driven by a time-use survey) switches appliances with
+  measured power traces, and the seasonal shape is localized by the
+  national standard load profile, so no local time-use survey is required.
+  Demand can be decomposed down to the individual appliance, which enables
+  efficiency scenarios. Reactive power is modelled as a single constant
+  capacitive parameter per connection point. Includes a PySide6 desktop
+  application and an optional pvlib/PVGIS photovoltaic chain.
+type: software
+license: MIT
+repository-code: "https://github.com/LukeVUT2025/bottom-up"
+version: "1.0.0"
+date-released: "2026-08-19"
+keywords:
+  - bottom-up model
+  - load profile
+  - residential electricity demand
+  - appliance-level decomposition
+  - reactive power
+  - Markov chain
+  - standard load profile
+  - time-use survey
+authors:
+  - family-names: Radil
+    given-names: "Lukáš"
+    orcid: "https://orcid.org/0000-0002-5837-0317"
+    email: radil@vut.cz
+    affiliation: "Brno University of Technology, Faculty of Electrical Engineering and Communication, Department of Electrical Power Engineering"
+  - family-names: "Ptáček"
+    given-names: Michal
+    orcid: "https://orcid.org/0000-0001-8923-7693"
+    email: ptacekm@vut.cz
+    affiliation: "Brno University of Technology, Faculty of Electrical Engineering and Communication, Department of Electrical Power Engineering"
+  - family-names: "Morávek"
+    given-names: Jan
+    orcid: "https://orcid.org/0000-0002-8662-7001"
+    email: moravek@vut.cz
+    affiliation: "Brno University of Technology, Faculty of Electrical Engineering and Communication, Department of Electrical Power Engineering"
+  - family-names: "Pavlík"
+    given-names: Libor
+    affiliation: "Brno University of Technology, Faculty of Electrical Engineering and Communication, Department of Electrical Power Engineering"
+preferred-citation:
+  type: article
+  title: "A localisable bottom-up model of household load profiles with appliance-level decomposition: validation against five independent measurement sources"
+  # TODO: fill in journal, year, volume, pages and DOI once accepted
+  journal: "Applied Energy"
+  year: 2026
+  authors:
+    - family-names: Radil
+      given-names: "Lukáš"
+      orcid: "https://orcid.org/0000-0002-5837-0317"
+    - family-names: "Ptáček"
+      given-names: Michal
+      orcid: "https://orcid.org/0000-0001-8923-7693"
+    - family-names: "Morávek"
+      given-names: Jan
+      orcid: "https://orcid.org/0000-0002-8662-7001"
+    - family-names: "Pavlík"
+      given-names: Libor
