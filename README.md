@@ -18,10 +18,11 @@ independent measurement sources"* (Applied Energy, in preparation).
   behavioural core comes from a foreign time-use survey; the seasonal shape is
   taken from the target country's public settlement profile. No local time-use
   survey required.
-- **Reactive power (Q₀)** — measurements show residential reactive demand is
-  persistently *capacitive* and practically independent of active power, so it
-  is modelled as a single constant per connection point (power factor becomes an
-  output, not an input).
+- **Reactive power (bottom-up per-appliance cos φ)** — each appliance
+  contributes Q(t) = P(t)·tan(φ) with its own displacement power factor and
+  sign (leading vs. lagging), taken from published measurements of 56 modern
+  household appliances (Hannagan et al. 2023). The aggregate power factor is
+  an output, not an input.
 - **Efficiency scenario** — one click applies best-in-class appliance factors
   and shows why appliance renewal cuts annual energy by ~25 % but the evening
   peak only by ~20 % (the peak is thermal).
@@ -65,7 +66,7 @@ sensitivity studies.
 | File | Role |
 |------|------|
 | `app.py` | PySide6 desktop app (entry point) |
-| `model_runner.py` | Orchestration: core + localization + efficiency + Q₀ + PV |
+| `model_runner.py` | Orchestration: core + localization + efficiency + Q + PV |
 | `household_simulation.py` | Simulation engine (occupancy, appliances, thermal model) |
 | `localization.py` | TDD4 seasonal factors |
 | `efficiency.py` | Efficiency-scenario appliance factors |
@@ -106,7 +107,7 @@ required to run the model; they underlie the paper's validation only.
 | Model, appliance decomposition | `household_simulation.py`, `model_runner.py` |
 | Localization by TDD4 | `localization.py` |
 | Efficiency scenario | `efficiency.py` |
-| Reactive power Q₀ (= −55.9 var/CP default) | `household_simulation.get_reactive_power` |
+| Reactive power (per-appliance cos φ, Hannagan et al. 2023) | `household_simulation.POWER_FACTORS`, `get_reactive_power` |
 | Photovoltaics | `pv.py` |
 
 ## Citation

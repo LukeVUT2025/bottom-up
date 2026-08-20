@@ -282,10 +282,65 @@ class HouseholdOccupancy:
 # HouseholdSimulation
 # ===========================================================================
 
-# Constant capacitive reactive offset per connection point. Calibrated on
-# distribution-feeder measurements; the second-resolution flat measurement
-# determines the shape, not the level.
+# Bottom-up reactive-power model: per-appliance displacement power factor
+# (cos phi, sign) -- sign is +1 for an inductive (lagging) load and -1 for a
+# capacitive (leading) one. Appliances not listed here are treated as purely
+# resistive (cos phi = 1, no reactive contribution): kettle, toaster, oven,
+# hob, iron, hair_dryer, boiler, heating/heating_v2.
+#
+# Values are taken from the measurement study of Hannagan, J.; Woszczeiko, R.;
+# Langstaff, T.; Shen, W.; Rodwell, J. "The Impact of Household Appliances
+# and Devices: Consider Their Reactive Power and Power Factors." Sustainability
+# 2023, 15(1), 158, DOI 10.3390/su15010158, which measured 56 modern
+# appliances (11 lagging, 4 resistive, 41 leading). Per-appliance mapping:
+#   refrigerator, freezer  -> Table 1 (Hisense 157L, +0.96); freezer as analog
+#   microwave              -> Table 2 (Samsung 1600 W, +0.92)
+#   vacuum                 -> Table 2 (mean of Dyson +0.98 and Pullman +0.96)
+#   tv                     -> Table 4 (mean of LED TVs, leading; -0.85)
+#   pc                     -> Table 5 (LED monitors and Table 6 laptop chargers,
+#                             leading; -0.60)
+#   small_appliances       -> Table 6 (chargers, leading; -0.58)
+#   router                 -> Table 6 "Fridge Switching Adapter" -0.61
+#                             (representative SMPS adapter of the same class)
+#   lighting               -> Table 3 (mean of LED bulbs -0.6 and LED
+#                             downlights -0.9; -0.75)
+# Washing machine, dishwasher, dryer and inverter cooling were not directly
+# measured by that study; they are assigned +0.95 as a conservative analogue
+# to the measured motor-driven appliances of Table 2 (motor efficiencies at
+# rated load fall in +0.92 to +0.98). Update these once direct measurements
+# are available.
+POWER_FACTORS: Dict[str, Tuple[float, int]] = {
+    'refrigerator':      (0.96, +1),
+    'freezer':           (0.96, +1),
+    'vacuum':            (0.97, +1),
+    'microwave':         (0.92, +1),
+    'tv':                (0.85, -1),
+    'pc':                (0.60, -1),
+    'small_appliances':  (0.58, -1),
+    'router':            (0.60, -1),
+    'lighting':          (0.75, -1),
+    'washing_machine':   (0.95, +1),   # analogous to measured motor loads
+    'dishwasher':        (0.95, +1),   # analogous to measured motor loads
+    'dryer':             (0.95, +1),   # analogous to measured motor loads
+    'cooling_v2':        (0.95, +1),   # analogous to measured motor loads
+}
+
+# Legacy: earlier versions of this model used a single constant capacitive
+# offset per connection point (Q0 ~ -55.9 var/CP), calibrated to LV feeder
+# measurements. The bottom-up per-appliance formulation above replaces it;
+# the constant is kept for reference only, no longer used by the model.
 Q0_VAR_PER_CP = -55.9
+
+
+def _tanphi(cos_phi: float, sign: int) -> float:
+    """Signed tan(phi) from a displacement power factor magnitude and sign."""
+    cos_phi = max(min(cos_phi, 1.0), 1e-6)
+    return sign * (1.0 - cos_phi ** 2) ** 0.5 / cos_phi
+
+
+APPLIANCE_TANPHI: Dict[str, float] = {
+    k: _tanphi(*v) for k, v in POWER_FACTORS.items()
+}
 
 
 class HouseholdSimulation:
@@ -2435,17 +2490,20 @@ class HouseholdSimulation:
                             month: int = 1,
                             enabled_appliances: Optional[Set[str]] = None,
                             include_solar_gains: bool = True) -> np.ndarray:
-        # Reactive power is NOT proportional to active power. Measurements
-        # show a capacitive draw practically independent of P, so each
-        # connection point is assigned a constant offset Q0 (see the module
-        # header). The power factor is no longer an input but an output:
-        # cos(phi) = P / sqrt(P^2 + Q^2).
-        active = self.get_aggregated_results(
+        # Bottom-up reactive power: sum of each appliance's active-power
+        # profile times its own signed tan(phi) (see POWER_FACTORS /
+        # APPLIANCE_TANPHI above). The power factor is an output, not an
+        # input: cos(phi) = P / sqrt(P^2 + Q^2).
+        appl = self.get_appliance_aggregated_results(
             interval_seconds, month, enabled_appliances,
             include_solar_gains=include_solar_gains,
         )
-        n_hh = int(np.sum(self.occupancy.size_distribution))
-        return np.full(len(active), Q0_VAR_PER_CP * n_hh, dtype=float)
+        n_pts = 86400 // interval_seconds
+        q = np.zeros(n_pts, dtype=float)
+        for key, tanphi in APPLIANCE_TANPHI.items():
+            if key in appl:
+                q = q + np.asarray(appl[key], dtype=float) * tanphi
+        return q
 
     def _ensure_results(self, interval_seconds: int, month: int,
                           enabled_appliances,

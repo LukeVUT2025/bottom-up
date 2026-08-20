@@ -133,7 +133,7 @@ class MainWindow(QMainWindow):
         # Paper features
         g_feat = QGroupBox("Features")
         vf = QVBoxLayout(g_feat)
-        self.chk_reactive = QCheckBox("Reactive power Q₀ (constant, capacitive)")
+        self.chk_reactive = QCheckBox("Reactive power Q (per-appliance cos φ)")
         self.chk_reactive.setChecked(True)
         self.chk_local = QCheckBox("Localization by the national profile (TDD4)")
         self.chk_local.setChecked(True)
@@ -385,7 +385,7 @@ class MainWindow(QMainWindow):
         if res["reactive"] is not None:
             self.ax_q = self.ax.twinx()
             self.ax_q.plot(t, res["reactive"] / N, ":", color="#555555", lw=1.6,
-                           label="Reactive power Q₀")
+                           label="Reactive power Q")
             self.ax_q.set_ylabel("Reactive power (var/CP)")
             self.ax_q.legend(loc="upper right", fontsize=7)
 
@@ -412,7 +412,11 @@ class MainWindow(QMainWindow):
         for k, arr in res["appliances"].items():
             df[f"A_{k}_W"] = arr
         if res["reactive"] is not None:
-            df["Q_var"] = res["reactive"]
+            df["Q_total_var"] = res["reactive"]
+            # per-appliance reactive-power breakdown (Hannagan et al. 2023
+            # cos φ; appliances with cos φ = 1 have Q ≡ 0 and are omitted).
+            for k, arr in res.get("reactive_appliances", {}).items():
+                df[f"Q_{k}_var"] = arr
         if res["pv"] is not None:
             df["PV_W"] = res["pv"]
             df["net_load_W"] = res["net"]

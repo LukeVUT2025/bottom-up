@@ -72,7 +72,9 @@ def run(cfg: RunConfig, progress: Optional[Callable[[int, str], None]] = None) -
         total        aggregated active power (W)
         groups       {group: profile W}
         appliances   {appliance: profile W}
-        reactive     reactive power (var) or None
+        reactive     total reactive power (var) or None
+        reactive_appliances  {appliance: reactive-power profile (var)}
+                     (only for those with a non-unity power factor)
         pv           PV generation (W, positive) or None
         net          total - pv (W) or None
         meta         run parameters
@@ -115,11 +117,20 @@ def run(cfg: RunConfig, progress: Optional[Callable[[int, str], None]] = None) -
     total = np.sum(list(appliances.values()), axis=0) if appliances else np.zeros(n)
     groups = _groups_from_appliances(appliances)
 
-    # Reactive power: constant capacitive Q0 per connection point (independent
-    # of active power and of localization/efficiency).
+    # Reactive power: per-appliance bottom-up sum Q(t) = sum_i P_i(t) * tan(phi_i)
+    # with each appliance's measured cos(phi) and sign (leading = capacitive,
+    # lagging = inductive). See sd.POWER_FACTORS / sd.APPLIANCE_TANPHI and the
+    # citation to Hannagan et al. (2023, Sustainability 15(1):158) in
+    # household_simulation.py.
     reactive = None
+    reactive_by_appliance: Dict[str, np.ndarray] = {}
     if cfg.reactive:
-        reactive = np.full(n, sd.Q0_VAR_PER_CP * N, dtype=float)
+        reactive = np.zeros(n, dtype=float)
+        for key, tanphi in sd.APPLIANCE_TANPHI.items():
+            if key in appliances:
+                q_i = appliances[key] * tanphi
+                reactive = reactive + q_i
+                reactive_by_appliance[key] = q_i
 
     # Photovoltaics.
     pv_gen = net = None
@@ -137,6 +148,7 @@ def run(cfg: RunConfig, progress: Optional[Callable[[int, str], None]] = None) -
         "groups": groups,
         "appliances": appliances,
         "reactive": reactive,
+        "reactive_appliances": reactive_by_appliance,
         "pv": pv_gen,
         "net": net,
         "meta": {
