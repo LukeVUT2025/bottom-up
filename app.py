@@ -133,7 +133,7 @@ class MainWindow(QMainWindow):
         # Paper features
         g_feat = QGroupBox("Features")
         vf = QVBoxLayout(g_feat)
-        self.chk_reactive = QCheckBox("Reactive power Q₀ (capacitive baseline + motor term)")
+        self.chk_reactive = QCheckBox("Reactive power Q₀ (constant, capacitive)")
         self.chk_reactive.setChecked(True)
         self.chk_local = QCheckBox("Localization by the national profile (TDD4)")
         self.chk_local.setChecked(True)

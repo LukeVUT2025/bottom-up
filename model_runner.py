@@ -115,16 +115,11 @@ def run(cfg: RunConfig, progress: Optional[Callable[[int, str], None]] = None) -
     total = np.sum(list(appliances.values()), axis=0) if appliances else np.zeros(n)
     groups = _groups_from_appliances(appliances)
 
-    # Reactive power: constant capacitive Q0 per connection point plus an
-    # inductive contribution from motor-driven appliances while they run
-    # (Q_ind = P * tan(phi), see sd.MOTOR_TANPHI). Capacitive is negative,
-    # inductive positive, so Q turns less negative when motors run.
+    # Reactive power: constant capacitive Q0 per connection point (independent
+    # of active power and of localization/efficiency).
     reactive = None
     if cfg.reactive:
         reactive = np.full(n, sd.Q0_VAR_PER_CP * N, dtype=float)
-        for key, tanphi in sd.MOTOR_TANPHI.items():
-            if key in appliances:
-                reactive = reactive + appliances[key] * tanphi
 
     # Photovoltaics.
     pv_gen = net = None

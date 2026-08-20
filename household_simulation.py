@@ -282,39 +282,10 @@ class HouseholdOccupancy:
 # HouseholdSimulation
 # ===========================================================================
 
-# Reactive power model (sign convention: capacitive negative, inductive
-# positive). Two components are summed:
-#   1) a constant capacitive baseline per connection point, from the
-#      always-on electronics (SMPS/EMI filters, LED drivers) and from the
-#      continuously cycling compressors (refrigerator/freezer) that are
-#      already present in every household of the feeder measurement this
-#      constant was calibrated on. Their average reactive contribution is
-#      therefore already folded into Q0 -- adding it again per appliance
-#      would double-count it.
-#   2) an inductive contribution from OCCASIONAL motor-driven appliances
-#      while they run (washing machine, dryer, dishwasher, vacuum), which are
-#      active only a small fraction of the day and so were not part of the
-#      always-on average: Q_ind(t) = P(t) * tan(phi).
-# The result is time-varying but stays predominantly capacitive, with modest
-# swings toward inductive when one of these appliances is running.
+# Constant capacitive reactive offset per connection point. Calibrated on
+# distribution-feeder measurements; the second-resolution flat measurement
+# determines the shape, not the level.
 Q0_VAR_PER_CP = -55.9
-
-# Inductive tan(phi) for occasional motor-driven appliances, applied to that
-# appliance's active-power profile. Derived from typical displacement power
-# factors (cos phi) for induction/universal motors: vacuum ~0.95 (universal
-# motor, near-resistive), washing machine / dishwasher ~0.85 (motor is a
-# minority of a mostly resistive heating cycle), heat-pump dryer ~0.75
-# (induction compressor dominates its cycle). Purely resistive loads (kettle,
-# oven, hob, toaster, iron, boiler, heating) and the always-on refrigerator/
-# freezer compressors (folded into Q0, see above) contribute no additional
-# reactive power here. These are modelling assumptions meant to be tuned
-# against measurements.
-MOTOR_TANPHI = {
-    'vacuum':          0.33,   # cos phi ~0.95
-    'washing_machine': 0.62,   # cos phi ~0.85
-    'dishwasher':      0.62,   # cos phi ~0.85
-    'dryer':           0.88,   # cos phi ~0.75 (heat-pump compressor)
-}
 
 
 class HouseholdSimulation:
@@ -2464,21 +2435,17 @@ class HouseholdSimulation:
                             month: int = 1,
                             enabled_appliances: Optional[Set[str]] = None,
                             include_solar_gains: bool = True) -> np.ndarray:
-        # Reactive power = constant capacitive baseline per connection point
-        # + inductive contribution from motor-driven appliances while they run
-        # (see MOTOR_TANPHI and the module header). The power factor is an
-        # output, not an input: cos(phi) = P / sqrt(P^2 + Q^2).
-        appl = self.get_appliance_aggregated_results(
+        # Reactive power is NOT proportional to active power. Measurements
+        # show a capacitive draw practically independent of P, so each
+        # connection point is assigned a constant offset Q0 (see the module
+        # header). The power factor is no longer an input but an output:
+        # cos(phi) = P / sqrt(P^2 + Q^2).
+        active = self.get_aggregated_results(
             interval_seconds, month, enabled_appliances,
             include_solar_gains=include_solar_gains,
         )
         n_hh = int(np.sum(self.occupancy.size_distribution))
-        n_pts = 86400 // interval_seconds
-        q = np.full(n_pts, Q0_VAR_PER_CP * n_hh, dtype=float)
-        for key, tanphi in MOTOR_TANPHI.items():
-            if key in appl:
-                q = q + np.asarray(appl[key], dtype=float) * tanphi
-        return q
+        return np.full(len(active), Q0_VAR_PER_CP * n_hh, dtype=float)
 
     def _ensure_results(self, interval_seconds: int, month: int,
                           enabled_appliances,
