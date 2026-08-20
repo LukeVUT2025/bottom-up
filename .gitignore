@@ -12,3 +12,4 @@ examples/*.png
 
 # MATLAB Drive metadata
 .MATLABDriveTag
+output.csv
