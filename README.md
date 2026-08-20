@@ -20,8 +20,10 @@ independent measurement sources"* (Applied Energy, in preparation).
   survey required.
 - **Reactive power (Q₀)** — measurements show residential reactive demand is
   persistently *capacitive* and practically independent of active power, so it
-  is modelled as a single constant per connection point (power factor becomes an
-  output, not an input).
+  is modelled as a constant capacitive baseline per connection point, with a
+  time-varying inductive contribution added while occasional motor-driven
+  appliances (washing machine, dryer, dishwasher, vacuum) are running (power
+  factor becomes an output, not an input).
 - **Efficiency scenario** — one click applies best-in-class appliance factors
   and shows why appliance renewal cuts annual energy by ~25 % but the evening
   peak only by ~20 % (the peak is thermal).
@@ -106,7 +108,7 @@ required to run the model; they underlie the paper's validation only.
 | Model, appliance decomposition | `household_simulation.py`, `model_runner.py` |
 | Localization by TDD4 | `localization.py` |
 | Efficiency scenario | `efficiency.py` |
-| Reactive power Q₀ (= −55.9 var/CP default) | `household_simulation.get_reactive_power` |
+| Reactive power (Q₀ = −55.9 var/CP baseline + motor inductive term) | `household_simulation.get_reactive_power` |
 | Photovoltaics | `pv.py` |
 
 ## Citation
