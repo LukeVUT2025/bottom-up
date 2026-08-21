@@ -1,6 +1,6 @@
 cff-version: 1.2.0
 message: "If you use this software, please cite both the software (this file) and the paper listed under preferred-citation."
-title: "Localizable bottom-up household load model"
+title: "Localizable bottom-up apartment household load model"
 abstract: >-
   A localizable, decomposable bottom-up model of residential electricity
   demand with resolution down to one second. Probabilistic occupancy (a
