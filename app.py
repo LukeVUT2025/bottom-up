@@ -164,6 +164,23 @@ class MainWindow(QMainWindow):
 
         lay.addWidget(self._build_appliances())
 
+        # Reactive-power offset (optional constant capacitive addition per CP)
+        g_q = QGroupBox("Reactive-power offset (per CP)")
+        qf = QFormLayout(g_q)
+        self.spn_qoff = QDoubleSpinBox()
+        self.spn_qoff.setRange(-500.0, 500.0)
+        self.spn_qoff.setDecimals(1)
+        self.spn_qoff.setSingleStep(5.0)
+        self.spn_qoff.setSuffix(" var/CP")
+        self.spn_qoff.setValue(0.0)
+        self.spn_qoff.setToolTip(
+            "Constant capacitive offset added to the bottom-up reactive-power "
+            "sum. Covers non-appliance contributions (LV cabling, always-on "
+            "surge protectors, external chargers). Feeder measurements "
+            "suggest -20 to -40 var/CP; default 0 = bare bottom-up.")
+        qf.addRow("Q offset:", self.spn_qoff)
+        lay.addWidget(g_q)
+
         # PV parameters
         self.g_pv = QGroupBox("PV parameters")
         pf = QFormLayout(self.g_pv)
@@ -310,6 +327,7 @@ class MainWindow(QMainWindow):
             localize=self.chk_local.isChecked(),
             efficiency=self.chk_eff.isChecked(),
             dishwasher_hot_water=self.chk_dishwasher_hw.isChecked(),
+            q_offset_var_cp=self.spn_qoff.value(),
             pv=self.chk_pv.isChecked(),
             pv_params={
                 "latitude": self.spn_lat.value(), "longitude": self.spn_lon.value(),

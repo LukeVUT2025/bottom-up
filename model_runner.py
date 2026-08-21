@@ -55,6 +55,13 @@ class RunConfig:
     localize: bool = True
     efficiency: bool = False
     dishwasher_hot_water: bool = False     # dishwasher: False = cold water (default), True = hot-water supply
+    # Optional constant capacitive offset (var per connection point) added to
+    # the bottom-up reactive-power sum. Represents non-appliance capacitive
+    # contributions -- LV cabling capacitance, always-on surge protectors,
+    # gate-motor and doorbell power supplies, external chargers -- that the
+    # per-appliance formulation does not capture. Feeder measurements suggest
+    # -20 to -40 var/CP; default 0 (bare bottom-up).
+    q_offset_var_cp: float = 0.0
     pv: bool = False
     pv_params: Dict = field(default_factory=lambda: {
         "latitude": 49.193, "longitude": 16.612,
@@ -253,6 +260,7 @@ def run(cfg: RunConfig,
     reactive = None
     reactive_by_appliance: Dict[str, np.ndarray] = {}
     reactive_single_cp: Optional[np.ndarray] = None
+    q_offset_total = float(cfg.q_offset_var_cp) * N
     if cfg.reactive:
         reactive = np.zeros(n, dtype=float)
         for key, tanphi in sd.APPLIANCE_TANPHI.items():
@@ -260,6 +268,9 @@ def run(cfg: RunConfig,
                 q_i = appliances[key] * tanphi
                 reactive = reactive + q_i
                 reactive_by_appliance[key] = q_i
+        # Optional constant capacitive offset for non-appliance contributions.
+        if q_offset_total != 0.0:
+            reactive = reactive + q_offset_total
         # Same bottom-up formula on the single-CP appliance breakdown so
         # the top panel shows a proper spiky Q, not a rescaled aggregate.
         if single_cp_appliances:
@@ -267,6 +278,9 @@ def run(cfg: RunConfig,
             for key, tanphi in sd.APPLIANCE_TANPHI.items():
                 if key in single_cp_appliances:
                     reactive_single_cp = reactive_single_cp + single_cp_appliances[key] * tanphi
+            # Single-CP gets the per-CP offset (not multiplied by N).
+            if cfg.q_offset_var_cp != 0.0:
+                reactive_single_cp = reactive_single_cp + float(cfg.q_offset_var_cp)
 
     # Photovoltaics: one representative day per month, tiled per calendar day.
     pv_gen = net = None
@@ -301,6 +315,7 @@ def run(cfg: RunConfig,
             "period_type": cfg.period_type, "horizon": cfg.horizon,
             "n_days": n_days, "iterations": iters, "equip_class": cfg.equip_class,
             "localize": cfg.localize, "localize_factor": f,
-            "efficiency": cfg.efficiency, "reactive": cfg.reactive, "pv": cfg.pv,
+            "efficiency": cfg.efficiency, "reactive": cfg.reactive,
+            "q_offset_var_cp": float(cfg.q_offset_var_cp), "pv": cfg.pv,
         },
     }
