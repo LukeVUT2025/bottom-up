@@ -3,14 +3,19 @@ message: "If you use this software, please cite both the software (this file) an
 title: "Localizable bottom-up apartment household load model"
 abstract: >-
   A localizable, decomposable bottom-up model of residential electricity
-  demand with resolution down to one second. Probabilistic occupancy (a
-  Markov chain driven by a time-use survey) switches appliances with
-  measured power traces, and the seasonal shape is localized by the
-  national standard load profile, so no local time-use survey is required.
-  Demand can be decomposed down to the individual appliance, which enables
-  efficiency scenarios. Reactive power is modelled as a single constant
-  capacitive parameter per connection point. Includes a PySide6 desktop
-  application and an optional pvlib/PVGIS photovoltaic chain.
+  demand in apartment dwellings (without electric space heating, electric
+  domestic hot water or electric-vehicle charging), with resolution down
+  to one second. Probabilistic occupancy (a Markov chain driven by a
+  time-use survey) switches appliances with measured power traces, and
+  the seasonal shape is localized by the national standard load profile,
+  so no local time-use survey is required. Demand can be decomposed down
+  to the individual appliance, which enables efficiency scenarios.
+  Reactive power is computed bottom-up as the sum of each appliance's
+  active-power profile scaled by its measured displacement power factor
+  (values from Hannagan et al. 2023), with an optional per-connection-point
+  capacitive offset for non-appliance contributions such as LV cabling.
+  Includes a PySide6 desktop application and an optional pvlib/PVGIS
+  photovoltaic chain.
 type: software
 license: MIT
 repository-code: "https://github.com/LukeVUT2025/bottom-up"
