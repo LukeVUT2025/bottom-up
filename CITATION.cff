@@ -27,21 +27,21 @@ keywords:
   - time-use survey
 authors:
   - family-names: Radil
-    given-names: "Lukáš"
+    given-names: "Lukas"
     orcid: "https://orcid.org/0000-0002-5837-0317"
     email: radil@vut.cz
     affiliation: "Brno University of Technology, Faculty of Electrical Engineering and Communication, Department of Electrical Power Engineering"
-  - family-names: "Ptáček"
+  - family-names: "Ptacek"
     given-names: Michal
     orcid: "https://orcid.org/0000-0001-8923-7693"
     email: ptacekm@vut.cz
     affiliation: "Brno University of Technology, Faculty of Electrical Engineering and Communication, Department of Electrical Power Engineering"
-  - family-names: "Morávek"
+  - family-names: "Moravek"
     given-names: Jan
     orcid: "https://orcid.org/0000-0002-8662-7001"
     email: moravek@vut.cz
     affiliation: "Brno University of Technology, Faculty of Electrical Engineering and Communication, Department of Electrical Power Engineering"
-  - family-names: "Pavlík"
+  - family-names: "Pavlik"
     given-names: Libor
     affiliation: "Brno University of Technology, Faculty of Electrical Engineering and Communication, Department of Electrical Power Engineering"
 preferred-citation:
@@ -52,13 +52,13 @@ preferred-citation:
   year: 2026
   authors:
     - family-names: Radil
-      given-names: "Lukáš"
+      given-names: "Lukas"
       orcid: "https://orcid.org/0000-0002-5837-0317"
-    - family-names: "Ptáček"
+    - family-names: "Ptacek"
       given-names: Michal
       orcid: "https://orcid.org/0000-0001-8923-7693"
-    - family-names: "Morávek"
+    - family-names: "Moravek"
       given-names: Jan
       orcid: "https://orcid.org/0000-0002-8662-7001"
-    - family-names: "Pavlík"
+    - family-names: "Pavlik"
       given-names: Libor
